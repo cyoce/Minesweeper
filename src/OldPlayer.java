@@ -1,10 +1,13 @@
 
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Random;
+import java.util.Stack;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
  * To change this template file, choose Tools | Templates
- * and open the template in the edito
+ * and open the template in the editor
  */
 
 /**
@@ -22,8 +25,14 @@ public class OldPlayer {
     private int[][] board;
     private double[][] probs;
     private double defprob;
-    
+    private boolean[][] moved;
+    private Queue<Integer> moveRs;
+    private Queue<Integer> moveCs;
+    private Queue<Integer> moveActions;
     private int numTurns;
+    
+    
+    private static final double STRANDED = -5;
     
     public OldPlayer(){
         numTurns = 0;
@@ -33,6 +42,11 @@ public class OldPlayer {
                 board[r][c] = -2;
             }
         }
+        moved = new boolean[ROWS][COLS];
+        
+        moveRs = new LinkedList<>();
+        moveCs = new LinkedList<>();
+        moveActions = new LinkedList<>();
     }
     
     public void updateTile(int r, int c, int t){
@@ -40,32 +54,23 @@ public class OldPlayer {
         board[r][c] = t;
     }
     
-    private double cleanUp(double v, int s){
-        if(s <= 0) return v;
-        return v;
-    }
     
-    private double combine(double a, double b){
-        if(a == 0 || b == 0) return 0;
-        if(a == 1 || b == 1) return 1;
-        
-        return a*b;
-    }
     
     private void genProb(){
         
         remainingMoves = 0;
         probs = new double[ROWS][COLS];
+        double[][] weights = new double[ROWS][COLS];
         for(int r = 0; r < ROWS; r++){
             for(int c = 0; c < COLS; c++){
-                probs[r][c] = -1;
+                probs[r][c] = 0.5;
             }
         }
         int total_bombs = Game.MINES;
         int total_free = ROWS*COLS;
         for(int r = 0; r < ROWS; r++){
             for(int c = 0; c < COLS; c++){
-                if(revealed(r,c)){
+                if(board[r][c] >= 0 || board[r][c] == Game.MINE || board[r][c] == Game.FLAG){
                     total_free--;
                     int available = 0;
                     int adj_bombs = 0;
@@ -85,26 +90,46 @@ public class OldPlayer {
                     else if(board[r][c] == 0) prob = 0;
                     else prob = (double) (board[r][c] - adj_bombs) / (double) available;
                     if(prob < 0){
-                        System.out.println("Negative prob @ (" + r + ", " + c + ")");
+//                        System.out.println("Negative prob @ (" + r + ", " + c + ")");
+                        System.out.println(board[r][c]);
+                        System.out.println(adj_bombs);
                     }
-                    
-                    
+                    double weight = 0;
+                    if(prob != 0 && prob != 1) weight = Math.abs(0.5-prob);
                     for(int dr = -1; dr <= 1; dr++){
                         if(r+dr >= ROWS || r+dr < 0) continue;
                         for(int dc = -1; dc <= 1; dc++){
                             if(dr == 0 && dc == 0) continue;
                             if(c+dc >= COLS || c+dc < 0) continue;
                             if(probs[r+dr][c+dc] == 0 || prob == 0) probs[r+dr][c+dc] = 0;
-                            if(probs[r+dr][c+dc] < 0){
+                            if(probs[r+dr][c+dc] == STRANDED || probs[r+dr][c+dc] == Game.FLAG){
                                 probs[r+dr][c+dc] = prob;
                                 continue;
                             }
-                            probs[r+dr][c+dc] = combine(probs[r+dr][c+dc], prob);
+                            if(prob == 0 || probs[r+dr][c+dc] == 0) probs[r+dr][c+dc] = 0;
+                            else if (prob == 1 || probs[r+dr][c+dc] == 1) probs[r+dr][c+dc] = 1;
+                            else {
+//                                probs[r+dr][c+dc] *= prob;
+                                double pr = probs[r+dr][c+dc];
+                                if(pr < 0.5 && prob < 0.5){
+                                    probs[r+dr][c+dc] = prob * pr;
+                                } else if(pr > 0.5 && prob > 0.5){
+                                    probs[r+dr][c+dc] = 1 - ((1 - prob) * (1 - pr));
+                                } else {
+                                    if(weights[r+dr][c+dc] == 0) weights[r+dr][c+dc] += Math.abs(0.5-pr);
+                                    probs[r+dr][c+dc] += prob * weight;
+                                    weights[r+dr][c+dc] += weight;
+                                }
+                                
+//                                if(prob > 0.5) weights[r+dr][c+dc] += 0.2;
+//                                if(prob < 0.5) weights[r+dr][c+dc] -= 0.2;
+                            }
+
                             
                             
                         }
                     }
-                } else if(board[r][c] == Game.MINE){
+                } else if(board[r][c] == Game.FLAG){
                     total_bombs--;
                 }
                 
@@ -112,24 +137,11 @@ public class OldPlayer {
             }
             
         }
-//        for(int r = 0; r < ROWS; r++){
-//            if(true) break; // TEMP
-//            for(int c = 0; c < COLS; c++){
-//                int squareSum = 0;
-//                for(int dr = -1; dr <= 1; dr++){
-//                    if(r+dr >= ROWS || r+dr < 0) continue;
-//                    for(int dc = -1; dc <= 1; dc++){
-//                        if(dr == 0 && dc == 0) continue;
-//                        if(c+dc >= COLS || c+dc < 0) continue;
-//                        if(revealed(r+dr, c+dc)){
-//                            squareSum++;
-//                        }
-//                    }
-//                }
-//                if(probs[r][c] > 0) probs[r][c] = cleanUp(probs[r][c], squareSum);
-//            }
-//        }
-//        defprob = (double) total_bombs / total_free;
+        for(int r = 0; r < ROWS && false; r++){
+            for(int c = 0; c < COLS; c++){
+                if(weights[r][c] > 0) probs[r][c] /= weights[r][c];
+            }
+        }
     }
     
     private boolean revealed(int r, int c){
@@ -140,38 +152,77 @@ public class OldPlayer {
         return false;
     }
     
+    private double minP;
+    private int minR;
+    private int minC;
+    private int recurseLevel;
+    
     public void planNextMove(int[][] b){
-        board = b;
-        nextAction = 1;
         
         numTurns++;
         
-        if(numTurns == 0){
+        
+        if(numTurns == 1){
             nextR = nextC = 0;
             return;
         }
-        
-        if(remainingMoves <= 0 || true){
-            genProb();
+        if(!moveActions.isEmpty()){
+            nextR = moveRs.remove();
+            nextC = moveCs.remove();
+            nextAction = moveActions.remove();
+            return;
         }
+        
+        
+        if(b != board){
+            recurseLevel = 0;
+            minP = -1;
+            minR = 6;
+            minC = 6;
+            for(int i = 0; i < b.length; i++){
+                for(int j = 0; j < b[i].length; j++){
+                    if(b[i][j] == Game.MINE) board[i][j] = Game.FLAG;
+                    else board[i][j] = b[i][j];
+                }
+            }
+            
+            genAutoMoves();
+            if(!moveActions.isEmpty()){
+                nextR = moveRs.remove();
+                nextC = moveCs.remove();
+                nextAction = moveActions.remove();
+                return;
+            }
+
+        }
+        
+        nextAction = 1;
+        
+        
+        
+        
+        
+        
+        
+        genProb();
+    
         printboard(probs);
-        remainingMoves--;
         
         double maxP = -1; // or defprob
         int maxC = 7;
         int maxR = 7;
+//        
+//        double minP = -1; // or defprob
+//        int minC = 6;
+//        int minR = 6;
         
-        double minP = -1; // or defprob
-        int minC = 6;
-        int minR = 6;
-        
-        System.out.println(defprob);
         for(int r = 0; r < ROWS; r++){
             for(int c = 0; c < COLS; c++){
                 if(revealed(r,c)) continue;
+                if(moved[r][c]) continue;
                 double p = probs[r][c];
-                if(p < 0) continue;
-                System.out.println("(" + r + ", " + c + ") :: " + p);
+                if(p == -1) continue;
+//                System.out.println("(" + r + ", " + c + ") :: " + p);
                 if(p == 1){
                     nextR = r;
                     nextC = c;
@@ -206,19 +257,80 @@ public class OldPlayer {
             nextR = maxR;
             nextC = maxC;
             nextAction = -1;
-        } else if(/*Math.pow(maxP,2)-0.5*/ maxP < 1 - minP){
+        } else if(maxP < 1 - minP){
            nextR = minR;
            nextC = minC;
            nextAction = 1;
+        } else if(recurseLevel < 100){
+            board[maxR][maxC] = Game.FLAG;
+            recurseLevel++;
+            planNextMove(board);
         } else {
             nextR = maxR;
             nextC = maxC;
             nextAction = -1;
         }
-        
-        
-        
-        System.out.println("...");
+        moved[nextR][nextC] = true;
+    }
+    
+    public void genAutoMoves(){
+        for(int r = 0; r < ROWS; r++){
+            for(int c = 0; c < COLS; c++){
+                if(board[r][c] >= 0){
+                    int adj_mines = 0;
+                    int available = 0;
+                    for(int dr = -1; dr <= 1; dr++){
+                        if(r+dr >= ROWS || r+dr < 0) continue;
+                        for(int dc = -1; dc <= 1; dc++){
+                            if(dr == 0 && dc == 0) continue;
+                            if(c+dc >= COLS || c+dc < 0) continue;
+                            
+                            if(board[r+dr][c+dc] == Game.UNMARKED) available++;
+                            if(board[r+dr][c+dc] == Game.FLAG) adj_mines++;
+                            
+                        }
+                    }
+                    
+                    if(board[r][c] == 0 || board[r][c] == adj_mines){
+                        System.out.println("[safe reveal]");
+                        for(int dr = -1; dr <= 1; dr++){
+                            if(r+dr >= ROWS || r+dr < 0) continue;
+                            for(int dc = -1; dc <= 1; dc++){
+                                if(dr == 0 && dc == 0) continue;
+                                if(c+dc >= COLS || c+dc < 0) continue;
+                                if(board[r+dr][c+dc] == Game.UNMARKED){
+                                    moveRs.add(r+dr);
+                                    moveCs.add(c+dc);
+                                    moveActions.add(1);
+                                }
+                            }
+                        }
+                        
+                        return;
+                    }
+                    
+                    if(available == board[r][c] - adj_mines){
+                        System.out.println("[safe mark]");
+                        for(int dr = -1; dr <= 1; dr++){
+                            if(r+dr >= ROWS || r+dr < 0) continue;
+                            for(int dc = -1; dc <= 1; dc++){
+                                if(dr == 0 && dc == 0) continue;
+                                if(c+dc >= COLS || c+dc < 0) continue;
+                                if(board[r+dr][c+dc] == Game.UNMARKED){
+                                    moveRs.add(r+dr);
+                                    moveCs.add(c+dc);
+                                    moveActions.add(-1);
+                                }
+                            }
+                        }
+                        
+                        return;
+                    }
+                    
+                   
+                }
+            }
+        }
     }
     
     private void printboard(double[][] b){

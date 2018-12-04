@@ -173,12 +173,26 @@ public class Display extends JComponent {
         avgButton = new Button("Avg", new Rectangle(420, 1200, 200, 80), () -> {
             System.out.println("avg");
             final int NUM_AVG = 100;
+            int successes = 0;
+            int falseflags = 0;
+            int repeats = 0;
+            int mineclicks = 0;
             double sumTurns = 0; 
             for(int i = 0; i < NUM_AVG; i++){
                 Game g = new Game();
                 while(!g.play());
                 System.out.println(g.numTurns);
                 sumTurns += g.numTurns;
+                switch(g.result){
+                    case SUCCESS: successes++; break;
+                    case FALSE_FLAG: falseflags++; break;
+                    case REPEATED_MOVE: repeats++; break;
+                    case MINE_CLICKED: mineclicks++; break;
+                }
+                System.out.println("Successes: " + successes);
+                System.out.println("Bad flags: " + falseflags);
+                System.out.println("Mines hit: " + mineclicks);
+                System.out.println("Repeats:   " + repeats);
             }
             System.out.println(sumTurns / NUM_AVG);
             avg = Integer.toString((int) sumTurns/NUM_AVG);

@@ -17,6 +17,8 @@ public class Game {
     
     static final int MINES = 20;
     
+    enum GameResult { SUCCESS, MINE_CLICKED, FALSE_FLAG, REPEATED_MOVE }
+    public GameResult result;
     private int[][] internal;
     // [0, 8] denotes number of neighbors
     // -1 is a mine
@@ -24,16 +26,22 @@ public class Game {
     static final int MINE = -1;
     static final int UNMARKED = -2;
     static final int FLAG = -3;
+    static final int MISS = -4;
     
     private int[][] gameBoard;
     
     private Player p;
     
+    private boolean[][] moved;
+    
     public int numTurns;
     
     public Game(){
+        result = GameResult.SUCCESS;
         internal = new int[ROWS][COLS];
         gameBoard = new int[ROWS][COLS];
+        
+        moved = new boolean[ROWS][COLS];
         
         p = new Player();
         numTurns = 0;
@@ -81,13 +89,17 @@ public class Game {
         if(steppedOnMine){
             gameBoard[r][c] = MINE;
             System.out.println("Stepped on mine");
+            result = GameResult.MINE_CLICKED;
         }
         else if(markedWrongMine){
+            gameBoard[r][c] = MISS;
             System.out.println("Marked empty square as mine");
+            result = GameResult.FALSE_FLAG;
         }
         else {
-            if(gameBoard[r][c] == internal[r][c]){
+            if(moved[r][c]){
                 System.out.println("repeated move");
+                result = GameResult.REPEATED_MOVE;
                 return true;
             }
             gameBoard[r][c] = internal[r][c];
@@ -114,7 +126,7 @@ public class Game {
         
         int mines = MINES;
         
-        for(int i = 0; i < mines; i++){
+        for(int i = 0; i < mines-1; i++){
             int n = a[i];
             
             
